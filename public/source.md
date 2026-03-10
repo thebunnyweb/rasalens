@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+```jsx
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, Legend
 } from 'recharts';
@@ -8,25 +9,25 @@ import {
   Server, HardDrive, Key, FileJson, Lock, User, Bot, Terminal, 
   ChevronLeft, ChevronRight, Sliders, Filter, Clock, Users, GitBranch, Zap, Flag, Send, Tag, Code, Eye, Sun, Moon, List, MousePointerClick, TrendingUp, UserMinus, ShieldCheck, Share2, BarChart2
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import './index.css'
 
 // --- UTILS: STORAGE ENGINE ---
-const STORAGE_KEY_DATA = 'rasalens_db_v10';
-const STORAGE_KEY_SETTINGS = 'rasalens_settings_v10';
+const STORAGE_KEY_DATA = 'rasalens_db_v9';
+const STORAGE_KEY_SETTINGS = 'rasalens_settings_v9';
 
 const db = {
   save: (data) => {
     try {
       localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(data));
-    } catch {
-      console.error("Storage quota exceeded");
+    } catch (e) {
+      console.error("Storage quota exceeded", e);
     }
   },
   load: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEY_DATA);
       return data ? JSON.parse(data) : null;
-    } catch {
+    } catch (e) {
       return null;
     }
   },
@@ -40,7 +41,7 @@ const db = {
     try {
       const s = localStorage.getItem(STORAGE_KEY_SETTINGS);
       return s ? JSON.parse(s) : null;
-    } catch {
+    } catch (e) {
       return null;
     }
   }
@@ -304,7 +305,6 @@ const processData = (rawData) => {
       avg_confidence: sessionIntentCount > 0 ? (sessionConfidenceSum / sessionIntentCount) : 0,
       message_count: enrichedHistory.length,
       flagged: tracker.flagged || false,
-      flag_comment: tracker.flag_comment || '',
       channel: sessionChannel,
       _processed: true 
     });
@@ -414,23 +414,6 @@ const processData = (rawData) => {
     _raw: rawData 
   };
 };
-
-// Helper to apply incoming shared link data
-const applyShareData = (data, shareObj) => {
-    if (!shareObj || !data) return data;
-    const updatedConvs = data.conversations.map(c => {
-        if (c.id === shareObj.id) {
-            return { 
-                ...c, 
-                flagged: true, // Always ensure it's flagged if someone shared a comment
-                flag_comment: shareObj.comment || c.flag_comment 
-            };
-        }
-        return c;
-    });
-    return { ...data, conversations: updatedConvs, _sharedId: shareObj.id };
-};
-
 
 // --- UI COMPONENTS ---
 const Card = ({ children, className = "", onClick }) => (
@@ -592,19 +575,22 @@ const UserTableModal = ({ isOpen, onClose, users }) => {
 
 // --- SCREENS ---
 
-const ConnectionGateway = ({ onConnect, pendingShare }) => {
+const ConnectionGateway = ({ onConnect }) => {
+  const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
+  const [fileName, setFileName] = useState(null);
   const [storeType, setStoreType] = useState('json');
 
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     if (file) {
+      setFileName(file.name);
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
           const json = JSON.parse(e.target.result);
           onConnect('json', json);
-        } catch {
+        } catch (error) {
           alert("Error parsing JSON file. Please ensure it is a valid Rasa tracker dump.");
         }
       };
@@ -620,12 +606,6 @@ const ConnectionGateway = ({ onConnect, pendingShare }) => {
         </div>
         <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">RasaLens Analytics</h1>
         <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto">Upload your Rasa tracker store JSON dump to visualize conversations, flows, and NLU performance.</p>
-        
-        {pendingShare && (
-            <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 rounded-lg text-sm flex items-center justify-center gap-2 max-w-sm mx-auto">
-                <Share2 className="h-4 w-4" /> You have a shared session link waiting! Upload your data to view it.
-            </div>
-        )}
       </div>
 
       <Card className="w-full max-w-xl overflow-hidden shadow-2xl shadow-slate-200/50 dark:shadow-none border-0 ring-1 ring-slate-200 dark:ring-slate-800 p-0">
@@ -668,7 +648,7 @@ const MetricCard = ({ title, value, sub, icon: Icon, trend, trendColor, onClick 
   <Card onClick={onClick} className="p-6 relative overflow-hidden group hover:shadow-lg transition-shadow">
     <div className="flex items-center justify-between pb-2 z-10 relative">
       <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">{title}</h3>
-      {Icon && <Icon className="h-4 w-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />}
+      <Icon className="h-4 w-4 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors" />
     </div>
     <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 z-10 relative">{value}</div>
     <p className={`text-xs mt-1 flex items-center font-medium ${trendColor || 'text-slate-500 dark:text-slate-400'}`}>
@@ -861,6 +841,7 @@ const OverviewTab = ({ data, onDrillDown }) => {
   );
 };
 
+// ... (Rest of existing components like MessageInspector, ConversationsTab, PerformanceTab, SettingsTab, App)
 const MessageInspector = ({ message }) => {
     if (!message) {
         return (
@@ -878,7 +859,7 @@ const MessageInspector = ({ message }) => {
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
                     <Eye className="h-3 w-3" /> Inspection
                 </span>
-                <span className="text-xs text-slate-400 font-mono">{message?.timestamp ? new Date(message.timestamp * 1000).toLocaleTimeString() : 'N/A'}</span>
+                <span className="text-xs text-slate-400 font-mono">{new Date(message.timestamp * 1000).toLocaleTimeString()}</span>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-6 dark:text-slate-300">
@@ -889,10 +870,10 @@ const MessageInspector = ({ message }) => {
                     </div>
                 </div>
 
-                {message?.role === 'user' && (
+                {message.role === 'user' && (
                     <div>
                         <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-1"><Zap className="h-3 w-3" /> Intent</h4>
-                        {message?.intent ? (
+                        {message.intent ? (
                             <div className="flex items-center justify-between bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded border border-emerald-100 dark:border-emerald-900/30">
                                 <span className="text-sm font-medium text-emerald-800 dark:text-emerald-400">{message.intent}</span>
                                 <span className="text-xs font-bold text-emerald-600 dark:text-emerald-500">{((message.conf || 0) * 100).toFixed(0)}%</span>
@@ -903,7 +884,7 @@ const MessageInspector = ({ message }) => {
                     </div>
                 )}
 
-                {message?.triggered_flow && (
+                {message.triggered_flow && (
                     <div>
                         <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-1"><GitBranch className="h-3 w-3" /> Triggered Flow</h4>
                         <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/20 p-2 rounded border border-indigo-100 dark:border-indigo-900/30">
@@ -913,7 +894,7 @@ const MessageInspector = ({ message }) => {
                     </div>
                 )}
 
-                {message?.entities && message.entities.length > 0 && (
+                {message.entities && message.entities.length > 0 && (
                     <div>
                         <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-1"><Tag className="h-3 w-3" /> Entities</h4>
                         <div className="space-y-2">
@@ -930,7 +911,7 @@ const MessageInspector = ({ message }) => {
                     </div>
                 )}
 
-                {message?.slots_set && message.slots_set.length > 0 && (
+                {message.slots_set && message.slots_set.length > 0 && (
                     <div>
                         <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-1"><Database className="h-3 w-3" /> Slots Set</h4>
                         <div className="space-y-1">
@@ -948,18 +929,17 @@ const MessageInspector = ({ message }) => {
     );
 };
 
-const ConversationsTab = ({ conversations, settings, filterType, onClearFilter, onFlagSession, onUpdateComment, onSimulateMessage, sharedSessionId }) => {
+const ConversationsTab = ({ conversations, settings, filterType, onClearFilter, onFlagSession, onSimulateMessage }) => {
   const [selectedId, setSelectedId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [simInput, setSimInput] = useState("");
   const [isBotTyping, setIsBotTyping] = useState(false);
   const [inspectedMessage, setInspectedMessage] = useState(null);
-  const [viewMode, setViewMode] = useState("transcript"); 
+  const [viewMode, setViewMode] = useState("transcript"); // 'transcript' | 'raw'
   const scrollRef = useRef(null);
-  const [openRawDetails, setOpenRawDetails] = useState({}); 
-  const [copied, setCopied] = useState(false);
+  const [openRawDetails, setOpenRawDetails] = useState({}); // Track expanded raw details
 
-  const isLowConfidence = useCallback((conf) => conf < (settings.confidenceThreshold || 0.6), [settings.confidenceThreshold]);
+  const isLowConfidence = (conf) => conf < (settings.confidenceThreshold || 0.6);
 
   const filteredConversations = useMemo(() => {
     let baseList = conversations || [];
@@ -973,26 +953,19 @@ const ConversationsTab = ({ conversations, settings, filterType, onClearFilter, 
       c.latest_intent.toLowerCase().includes(searchTerm.toLowerCase())
     );
     return searched;
-  }, [conversations, searchTerm, filterType, isLowConfidence]);
+  }, [conversations, searchTerm, filterType, settings.confidenceThreshold]);
 
-  // Handle incoming shared session ID and set default selection
   useEffect(() => {
-    if (!filteredConversations || !conversations) return;
-
-    if (sharedSessionId && conversations?.find(c => c.id === sharedSessionId)) {
-        if (selectedId !== sharedSessionId) {
-            setSelectedId(sharedSessionId);
-        }
-    } else if (!sharedSessionId && filteredConversations.length > 0) {
+    if (filteredConversations && filteredConversations.length > 0) {
         if (!filteredConversations.find(c => c.id === selectedId)) {
              setSelectedId(filteredConversations[0].id);
-             setInspectedMessage(null);
+             setInspectedMessage(null); 
              setOpenRawDetails({});
         }
-    } else if (filteredConversations.length === 0 && selectedId) {
+    } else {
         setSelectedId(null);
     }
-  }, [filteredConversations, sharedSessionId, conversations, selectedId]);
+  }, [filteredConversations]);
 
   const activeConversation = conversations?.find(c => c.id === selectedId);
 
@@ -1006,29 +979,6 @@ const ConversationsTab = ({ conversations, settings, filterType, onClearFilter, 
     setSimInput("");
     setIsBotTyping(true);
     setTimeout(() => setIsBotTyping(false), 1500);
-  };
-
-  const handleShareLink = () => {
-      if (!activeConversation) return;
-      const url = new URL(window.location.href);
-      url.searchParams.set('session', activeConversation.id);
-      if (activeConversation.flag_comment) {
-          url.searchParams.set('comment', activeConversation.flag_comment);
-      }
-      
-      // Fallback for iFrame restrictions
-      const textArea = document.createElement("textarea");
-      textArea.value = url.toString();
-      document.body.appendChild(textArea);
-      textArea.select();
-      try {
-          document.execCommand('copy');
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-          console.error('Copy failed', err);
-      }
-      document.body.removeChild(textArea);
   };
 
   const toggleRawDetail = (idx) => {
@@ -1148,17 +1098,6 @@ const ConversationsTab = ({ conversations, settings, filterType, onClearFilter, 
                         className={`px-2 py-1 text-xs font-medium rounded-sm transition-colors ${viewMode === 'raw' ? 'bg-white dark:bg-slate-600 text-slate-900 dark:text-slate-100 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
                     >Raw Events</button>
                  </div>
-                 
-                 <Button 
-                    variant="outline" 
-                    className="h-8 justify-center gap-2 transition-all mr-1"
-                    onClick={handleShareLink}
-                    title="Copy Shareable Offline Link"
-                 >
-                    <Share2 className="h-3 w-3" />
-                    {copied ? 'Copied!' : 'Share'}
-                 </Button>
-
                  <Button 
                     variant={activeConversation.flagged ? "danger" : "dangerOutline"} 
                     className="h-8 justify-center gap-2 transition-all"
@@ -1168,22 +1107,6 @@ const ConversationsTab = ({ conversations, settings, filterType, onClearFilter, 
                  </Button>
               </div>
             </div>
-
-            {/* NEW: Reviewer Notes Area */}
-            {activeConversation.flagged && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 p-4 shrink-0 transition-all">
-                <label className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-500 mb-2 flex items-center gap-1">
-                    <Flag className="h-3 w-3" /> Reviewer Notes
-                </label>
-                <textarea
-                    className="w-full bg-white dark:bg-slate-950 border border-amber-200 dark:border-amber-700/50 rounded-md p-2 text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-sm"
-                    rows={2}
-                    placeholder="Add your analysis or notes on why this session was flagged..."
-                    value={activeConversation.flag_comment || ''}
-                    onChange={(e) => onUpdateComment(activeConversation.id, e.target.value)}
-                />
-                </div>
-            )}
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6" ref={scrollRef}>
                 {viewMode === 'raw' ? (
@@ -1430,7 +1353,8 @@ const PerformanceTab = ({ data }) => {
         </Card>
       </div>
 
-       <Card className="p-6">
+       {/* NEW: Events Per Session Chart */}
+      <Card className="p-6">
           <div className="mb-4 flex justify-between items-center">
             <div>
                 <h3 className="font-semibold text-slate-900 dark:text-slate-100">Events per Conversation (Top 50)</h3>
@@ -1519,91 +1443,23 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("overview");
   const [appData, setAppData] = useState(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [showSourceCode, setShowSourceCode] = useState(false);
-  const [sourceCodeContent, setSourceCodeContent] = useState('');
-  
-  // Initialize dark mode from storage
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   
   const [conversationFilter, setConversationFilter] = useState('all');
-  const [incomingShare, setIncomingShare] = useState(null);
   
   const [settings, setSettings] = useState({
     confidenceThreshold: 0.6,
     sessionTimeout: 60
   });
 
-  // Apply dark mode to document root
   useEffect(() => {
-      const root = document.documentElement;
-      if (isDarkMode) {
-          root.classList.add('dark');
-      } else {
-          root.classList.remove('dark');
-      }
-      const storedSettings = db.loadSettings() || {};
-      db.saveSettings({ ...storedSettings, isDarkMode });
-  }, [isDarkMode]);
-
-  // Load initial dark mode preference from storage
-  useEffect(() => {
-      const storedSettings = db.loadSettings();
-      if (storedSettings?.isDarkMode === true) {
-          const root = document.documentElement;
-          root.classList.add('dark');
-          setIsDarkMode(true);
-      }
-  }, []);
-
-  // Load source code markdown
-  useEffect(() => {
-      fetch('/source.md')
-          .then(res => res.text())
-          .then(text => setSourceCodeContent(text))
-          .catch(err => console.error('Error loading source code:', err));
-  }, []);
-
-  // Init + Check for Offline Share Link
-  useEffect(() => {
-      // 1. Check for incoming offline share link
-      const params = new URLSearchParams(window.location.search);
-      const session = params.get('session');
-      let shareData = null;
-      if (session) {
-          shareData = { id: session, comment: params.get('comment') || '' };
-          // Clean the URL bar so it doesn't linger
-          window.history.replaceState({}, document.title, window.location.pathname);
-      }
-
-      // 2. Load Local Data and apply state updates
       const storedData = db.load();
-      if (!storedData && !shareData) return;
-      
-      let dataToUse = storedData;
-      if (shareData && storedData) {
-          dataToUse = applyShareData(storedData, shareData);
-          setAppData(dataToUse);
-          setIncomingShare(shareData);
-          setActiveTab('conversations');
-          setConversationFilter('flagged');
-          setIsConnected(true);
-      } else if (storedData) {
+      if (storedData) {
           setAppData(storedData);
           setIsConnected(true);
       }
+      // Removed automatic dark mode detection to enforce light mode default
   }, []);
-
-  // Apply dark mode to document root and persist setting
-  useEffect(() => {
-      const root = document.documentElement;
-      if (isDarkMode) {
-          root.classList.add('dark');
-      } else {
-          root.classList.remove('dark');
-      }
-      const storedSettings = db.loadSettings() || {};
-      db.saveSettings({ ...storedSettings, isDarkMode });
-  }, [isDarkMode]);
 
   const handleUpdateSettings = (newSettings) => {
       setSettings(newSettings);
@@ -1619,14 +1475,6 @@ export default function App() {
   const handleFlagSession = (id) => {
       if (!appData) return;
       const updated = appData.conversations.map(c => c.id === id ? {...c, flagged: !c.flagged} : c);
-      const newData = { ...appData, conversations: updated };
-      setAppData(newData);
-      db.save(newData);
-  };
-
-  const handleUpdateComment = (id, comment) => {
-      if (!appData) return;
-      const updated = appData.conversations.map(c => c.id === id ? {...c, flag_comment: comment} : c);
       const newData = { ...appData, conversations: updated };
       setAppData(newData);
       db.save(newData);
@@ -1673,29 +1521,18 @@ export default function App() {
 
   if (!isConnected) {
     return (
-        <div>
-             <ConnectionGateway 
-                pendingShare={!!incomingShare}
-                onConnect={(type, rawData) => {
-                    let processed = processData(rawData || []); 
-                    if (processed) { 
-                        if (incomingShare) {
-                            processed = applyShareData(processed, incomingShare);
-                            setActiveTab('conversations');
-                            setConversationFilter('flagged');
-                        }
-                        setAppData(processed); 
-                        db.save(processed); 
-                    }
-                    setIsConnected(true);
-                }} 
-             />
+        <div className={isDarkMode ? "dark" : ""}>
+             <ConnectionGateway onConnect={(type, rawData) => {
+                const processed = processData(rawData || []); 
+                if (processed) { setAppData(processed); db.save(processed); }
+                setIsConnected(true);
+            }} />
         </div>
     );
   }
 
   return (
-    <div>
+    <div className={isDarkMode ? "dark" : ""}>
       <div className="flex h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-200">
         
         {/* Sidebar */}
@@ -1716,26 +1553,26 @@ export default function App() {
           </div>
           
           <nav className="flex-1 p-4 space-y-1 overflow-hidden">
-            <Button variant={activeTab === "overview" ? "secondary" : "ghost"} className={`w-full ${isSidebarCollapsed ? 'h-9 w-9 p-0 flex items-center justify-center' : 'justify-start'}`} onClick={() => setActiveTab("overview")} title="Overview">
-              <LayoutDashboard className="h-4 w-4 shrink-0" /> {!isSidebarCollapsed && <span className="ml-2">Overview</span>}
+            <Button variant={activeTab === "overview" ? "secondary" : "ghost"} className={`w-full justify-start ${isSidebarCollapsed ? 'px-2' : ''}`} onClick={() => setActiveTab("overview")}>
+              <LayoutDashboard className={`h-4 w-4 ${isSidebarCollapsed ? 'mr-0' : 'mr-2'}`} /> {!isSidebarCollapsed && "Overview"}
             </Button>
-            <Button variant={activeTab === "conversations" ? "secondary" : "ghost"} className={`w-full ${isSidebarCollapsed ? 'h-9 w-9 p-0 flex items-center justify-center' : 'justify-start'}`} onClick={() => { setActiveTab("conversations"); setConversationFilter('all'); }} title="Conversations">
-              <MessageSquare className="h-4 w-4 shrink-0" /> {!isSidebarCollapsed && <span className="ml-2">Conversations</span>}
+            <Button variant={activeTab === "conversations" ? "secondary" : "ghost"} className={`w-full justify-start ${isSidebarCollapsed ? 'px-2' : ''}`} onClick={() => { setActiveTab("conversations"); setConversationFilter('all'); }}>
+              <MessageSquare className={`h-4 w-4 ${isSidebarCollapsed ? 'mr-0' : 'mr-2'}`} /> {!isSidebarCollapsed && "Conversations"}
             </Button>
-            <Button variant={activeTab === "flagged" ? "secondary" : "ghost"} className={`w-full ${isSidebarCollapsed ? 'h-9 w-9 p-0 flex items-center justify-center' : 'justify-start'}`} onClick={() => { setActiveTab("conversations"); setConversationFilter('flagged'); }} title="Flagged">
-              <Flag className="h-4 w-4 shrink-0" /> {!isSidebarCollapsed && <span className="ml-2">Flagged</span>}
+            <Button variant={activeTab === "flagged" ? "secondary" : "ghost"} className={`w-full justify-start ${isSidebarCollapsed ? 'px-2' : ''}`} onClick={() => { setActiveTab("conversations"); setConversationFilter('flagged'); }}>
+              <Flag className={`h-4 w-4 ${isSidebarCollapsed ? 'mr-0' : 'mr-2'}`} /> {!isSidebarCollapsed && "Flagged"}
             </Button>
-            <Button variant={activeTab === "performance" ? "secondary" : "ghost"} className={`w-full ${isSidebarCollapsed ? 'h-9 w-9 p-0 flex items-center justify-center' : 'justify-start'}`} onClick={() => setActiveTab("performance")} title="Performance">
-              <Activity className="h-4 w-4 shrink-0" /> {!isSidebarCollapsed && <span className="ml-2">Performance</span>}
+            <Button variant={activeTab === "performance" ? "secondary" : "ghost"} className={`w-full justify-start ${isSidebarCollapsed ? 'px-2' : ''}`} onClick={() => setActiveTab("performance")}>
+              <Activity className={`h-4 w-4 ${isSidebarCollapsed ? 'mr-0' : 'mr-2'}`} /> {!isSidebarCollapsed && "Performance"}
             </Button>
             
             <div className="pt-4 mt-auto border-t border-slate-100 dark:border-slate-800 space-y-1">
-                <Button variant={activeTab === "settings" ? "secondary" : "ghost"} className={`w-full ${isSidebarCollapsed ? 'h-9 w-9 p-0 flex items-center justify-center' : 'justify-start'}`} onClick={() => setActiveTab("settings")} title="Settings">
-                <Settings className="h-4 w-4 shrink-0" /> {!isSidebarCollapsed && <span className="ml-2">Settings</span>}
+                <Button variant={activeTab === "settings" ? "secondary" : "ghost"} className={`w-full justify-start ${isSidebarCollapsed ? 'px-2' : ''}`} onClick={() => setActiveTab("settings")}>
+                <Settings className={`h-4 w-4 ${isSidebarCollapsed ? 'mr-0' : 'mr-2'}`} /> {!isSidebarCollapsed && "Settings"}
                 </Button>
-                <Button variant="ghost" className={`w-full ${isSidebarCollapsed ? 'h-9 w-9 p-0 flex items-center justify-center' : 'justify-start'}`} onClick={() => setIsDarkMode(!isDarkMode)} title={isDarkMode ? "Light Mode" : "Dark Mode"}>
-                {isDarkMode ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />} 
-                {!isSidebarCollapsed && <span className="ml-2">{isDarkMode ? "Light Mode" : "Dark Mode"}</span>}
+                <Button variant="ghost" className={`w-full justify-start ${isSidebarCollapsed ? 'px-2' : ''}`} onClick={() => setIsDarkMode(!isDarkMode)}>
+                {isDarkMode ? <Sun className={`h-4 w-4 ${isSidebarCollapsed ? 'mr-0' : 'mr-2'}`} /> : <Moon className={`h-4 w-4 ${isSidebarCollapsed ? 'mr-0' : 'mr-2'}`} />} 
+                {!isSidebarCollapsed && (isDarkMode ? "Light Mode" : "Dark Mode")}
                 </Button>
             </div>
           </nav>
@@ -1745,10 +1582,7 @@ export default function App() {
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
           <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-8 shrink-0">
             <div className="flex items-center text-slate-500 dark:text-slate-400 text-sm">Dashboard / <span className="text-slate-900 dark:text-slate-100 ml-1 font-medium capitalize">{activeTab}</span></div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" className="h-8 gap-2 justify-center" onClick={() => setShowSourceCode(true)}>Source Code</Button>
-              <Button variant="outline" className="h-8 gap-2 justify-center" onClick={() => setIsConnected(false)}>Change Store</Button>
-            </div>
+            <Button variant="outline" className="h-8 gap-2 justify-center" onClick={() => setIsConnected(false)}>Change Store</Button>
           </header>
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-8 bg-slate-50/50 dark:bg-slate-950/50">
@@ -1761,9 +1595,7 @@ export default function App() {
                   filterType={conversationFilter}
                   onClearFilter={() => setConversationFilter('all')}
                   onFlagSession={handleFlagSession}
-                  onUpdateComment={handleUpdateComment}
                   onSimulateMessage={handleSimulateMessage}
-                  sharedSessionId={appData?._sharedId}
                 />
               )}
               {activeTab === 'performance' && <PerformanceTab data={appData} />}
@@ -1772,39 +1604,7 @@ export default function App() {
           </div>
         </main>
       </div>
-
-      {/* Source Code Modal */}
-      <Modal isOpen={showSourceCode} onClose={() => setShowSourceCode(false)} title="App Source Code">
-        <div className="p-6 bg-slate-50 dark:bg-slate-950 overflow-auto max-h-[70vh] prose prose-sm dark:prose-invert">
-          {sourceCodeContent ? (
-            <ReactMarkdown
-              components={{
-                code: ({node, inline, className, children, ...props}) => 
-                  inline ? (
-                    <code className="bg-slate-900 dark:bg-slate-800 text-slate-100 px-2 py-1 rounded text-xs font-mono" {...props}>
-                      {children}
-                    </code>
-                  ) : (
-                    <pre className="bg-slate-900 text-slate-100 p-4 rounded-lg overflow-x-auto text-xs font-mono my-4">
-                      <code>{children}</code>
-                    </pre>
-                  ),
-                h1: ({node, ...props}) => <h1 className="text-2xl font-bold mt-8 mb-4 text-slate-900 dark:text-slate-100" {...props} />,
-                h2: ({node, ...props}) => <h2 className="text-lg font-bold mt-6 mb-3 text-slate-900 dark:text-slate-100" {...props} />,
-                h3: ({node, ...props}) => <h3 className="text-sm font-bold mt-4 mb-2 text-slate-900 dark:text-slate-100" {...props} />,
-                p: ({node, ...props}) => <p className="text-sm text-slate-700 dark:text-slate-300 mb-2" {...props} />,
-                ul: ({node, ...props}) => <ul className="list-disc list-inside text-sm text-slate-700 dark:text-slate-300 mb-2" {...props} />,
-                ol: ({node, ...props}) => <ol className="list-decimal list-inside text-sm text-slate-700 dark:text-slate-300 mb-2" {...props} />,
-                li: ({node, ...props}) => <li className="mb-1" {...props} />,
-              }}
-            >
-              {sourceCodeContent}
-            </ReactMarkdown>
-          ) : (
-            <p className="text-slate-500 dark:text-slate-400">Loading source code...</p>
-          )}
-        </div>
-      </Modal>
     </div>
   );
 }
+```
